@@ -2,8 +2,9 @@ package atsp
 
 import (
 	"math"
-	"pea1/graph"
-	"pea1/utils"
+
+	"github.com/BlazejUl/pwr-ite-pea-2/graph"
+	"github.com/BlazejUl/pwr-ite-pea-2/utils"
 )
 
 type BranchAndBoundBestFirstSolver struct {
@@ -13,11 +14,9 @@ type BranchAndBoundBestFirstSolver struct {
 }
 
 func NewBranchAndBoundBestFirstSolver(g graph.Graph) *BranchAndBoundBestFirstSolver {
-	bestPath := make([]int, g.GetVerticesCount())
+	bestPath := make([]int, g.GetVerticesNum())
 	return &BranchAndBoundBestFirstSolver{
-		graph:      g,
-		UpperBound: math.MaxInt,
-		BestPath:   bestPath,
+		graph: g, UpperBound: math.MaxInt, BestPath: bestPath,
 	}
 }
 
@@ -39,8 +38,8 @@ type BestFirstNode struct {
 
 // greedyUpperBound oblicza górne ograniczenie zachłannie (nearest neighbor)
 func (atsp *BranchAndBoundBestFirstSolver) greedyUpperBound(startVertex int) (int, []int) {
-	n := atsp.graph.GetVerticesCount()
-	matrix := atsp.graph.AsMatrix()
+	n := atsp.graph.GetVerticesNum()
+	matrix := atsp.graph.GetMatrix()
 
 	visited := make([]bool, n)
 	path := make([]int, 0, n)
@@ -75,8 +74,8 @@ func (atsp *BranchAndBoundBestFirstSolver) greedyUpperBound(startVertex int) (in
 // minOutgoingEdge zwraca minimalną krawędź wychodzącą z wierzchołka v
 // z pominięciem już odwiedzonych wierzchołków
 func (atsp *BranchAndBoundBestFirstSolver) minOutgoingEdge(v int, visited []bool) int {
-	matrix := atsp.graph.AsMatrix()
-	n := atsp.graph.GetVerticesCount()
+	matrix := atsp.graph.GetMatrix()
+	n := atsp.graph.GetVerticesNum()
 	minCost := math.MaxInt
 
 	for i := 0; i < n; i++ {
@@ -95,8 +94,8 @@ func (atsp *BranchAndBoundBestFirstSolver) minOutgoingEdge(v int, visited []bool
 // calculateLowerBound oblicza silniejsze dolne ograniczenie:
 // koszt aktualnej ścieżki + minimalne krawędzie wychodzące z nieodwiedzonych wierzchołków
 func (atsp *BranchAndBoundBestFirstSolver) calculateLowerBound(node BestFirstNode, nextVertex int) int {
-	matrix := atsp.graph.AsMatrix()
-	n := atsp.graph.GetVerticesCount()
+	matrix := atsp.graph.GetMatrix()
+	n := atsp.graph.GetVerticesNum()
 
 	// Koszt dojścia do następnego wierzchołka
 	edgeCost := matrix[node.Vertex][nextVertex]
@@ -121,7 +120,7 @@ func (atsp *BranchAndBoundBestFirstSolver) calculateLowerBound(node BestFirstNod
 
 // BranchAndBoundBestFirst rozwiązuje ATSP używając globalnej kolejki priorytetowej
 func (atsp *BranchAndBoundBestFirstSolver) BranchAndBoundBestFirst(startVertex int) (int, []int) {
-	n := atsp.graph.GetVerticesCount()
+	n := atsp.graph.GetVerticesNum()
 
 	// Ulepszone górne ograniczenie — greedy nearest neighbor zamiast MaxInt
 	greedyCost, greedyPath := atsp.greedyUpperBound(startVertex)
@@ -164,7 +163,7 @@ func (atsp *BranchAndBoundBestFirstSolver) BranchAndBoundBestFirst(startVertex i
 		}
 
 		if allVisited {
-			matrix := atsp.graph.AsMatrix()
+			matrix := atsp.graph.GetMatrix()
 			returnCost := current.LowerBound + matrix[current.Vertex][startVertex]
 			if returnCost < atsp.UpperBound {
 				atsp.UpperBound = returnCost
