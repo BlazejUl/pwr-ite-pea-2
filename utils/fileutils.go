@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/BlazejUl/pwr-ite-pea-1/graph"
+	"github.com/BlazejUl/pwr-ite-pea-2/graph"
 )
 
 func ReadGraphFromFile(filePath string) (graph.Graph, error) {

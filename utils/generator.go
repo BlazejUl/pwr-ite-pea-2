@@ -3,7 +3,7 @@ package utils
 import (
 	"math/rand"
 
-	"github.com/BlazejUl/pwr-ite-pea-1/graph"
+	"github.com/BlazejUl/pwr-ite-pea-2/graph"
 )
 
 func GenerateAdMatrix(vertices int) (*graph.AdMatrix, error) {
