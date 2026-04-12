@@ -2,6 +2,7 @@ package atsp
 
 import (
 	"math"
+	"time"
 
 	"github.com/BlazejUl/pwr-ite-pea-2/graph"
 	"github.com/BlazejUl/pwr-ite-pea-2/utils"
@@ -24,136 +25,143 @@ func (atsp *BranchAndBoundBestFirstSolver) GetGraph() graph.Graph {
 	return atsp.graph
 }
 
-func (atsp *BranchAndBoundBestFirstSolver) Solve(startVertex int) (int, []int) {
-	return atsp.BranchAndBoundBestFirst(startVertex)
+func (atsp *BranchAndBoundBestFirstSolver) Solve(startVertex int, useTimer bool) (int, []int) {
+	return atsp.BranchAndBoundBestFirst(startVertex, useTimer)
 }
 
-// BestFirstNode reprezentuje węzeł w globalnej kolejce priorytetowej
 type BestFirstNode struct {
 	Vertex     int
 	LowerBound int
 	Visited    []bool
 	Path       []int
+	PathCost   int
 }
 
-// greedyUpperBound oblicza górne ograniczenie zachłannie (nearest neighbor)
-func (atsp *BranchAndBoundBestFirstSolver) greedyUpperBound(startVertex int) (int, []int) {
-	n := atsp.graph.GetVerticesNum()
-	matrix := atsp.graph.GetMatrix()
-
-	visited := make([]bool, n)
-	path := make([]int, 0, n)
-	current := startVertex
-	totalCost := 0
-
-	visited[current] = true
-	path = append(path, current)
-
-	for len(path) < n {
-		bestCost := math.MaxInt
-		bestNext := -1
-
-		for i := 0; i < n; i++ {
-			if !visited[i] && matrix[current][i] < bestCost {
-				bestCost = matrix[current][i]
-				bestNext = i
-			}
-		}
-
-		visited[bestNext] = true
-		path = append(path, bestNext)
-		totalCost += bestCost
-		current = bestNext
-	}
-
-	// Powrót do wierzchołka startowego
-	totalCost += matrix[current][startVertex]
-	return totalCost, path
-}
-
-// minOutgoingEdge zwraca minimalną krawędź wychodzącą z wierzchołka v
-// z pominięciem już odwiedzonych wierzchołków
 func (atsp *BranchAndBoundBestFirstSolver) minOutgoingEdge(v int, visited []bool) int {
 	matrix := atsp.graph.GetMatrix()
 	n := atsp.graph.GetVerticesNum()
 	minCost := math.MaxInt
 
 	for i := 0; i < n; i++ {
-		if !visited[i] && matrix[v][i] < minCost {
+		//pomiń odwiedzone i siebie
+		if visited[i] || matrix[v][i] == -1 {
+			continue
+		}
+		if matrix[v][i] < minCost {
 			minCost = matrix[v][i]
 		}
 	}
 
-	// Jeśli nie ma krawędzi (wszystkie odwiedzone), zwróć 0
 	if minCost == math.MaxInt {
 		return 0
 	}
 	return minCost
 }
 
-// calculateLowerBound oblicza silniejsze dolne ograniczenie:
-// koszt aktualnej ścieżki + minimalne krawędzie wychodzące z nieodwiedzonych wierzchołków
-func (atsp *BranchAndBoundBestFirstSolver) calculateLowerBound(node BestFirstNode, nextVertex int) int {
+// computeBound oblicza pathCost + drogę z tego do następnego +
+// minimum z następnego do jeszcze nie odwiedzonych
+func (atsp *BranchAndBoundBestFirstSolver) computeBound(
+	pathCost int,
+	currentVertex int,
+	nextVertex int,
+	visited []bool,
+	startVertex int,
+) int {
 	matrix := atsp.graph.GetMatrix()
 	n := atsp.graph.GetVerticesNum()
 
-	// Koszt dojścia do następnego wierzchołka
-	edgeCost := matrix[node.Vertex][nextVertex]
-	newBound := node.LowerBound + edgeCost
+	edgeCost := matrix[currentVertex][nextVertex]
+	if edgeCost == -1 {
+		return math.MaxInt
+	}
 
-	// Tymczasowo oznacz następny wierzchołek jako odwiedzony
-	// żeby pominąć go przy obliczaniu minimalnych krawędzi
-	node.Visited[nextVertex] = true
+	newPathCost := pathCost + edgeCost
 
-	// Dodaj minimalną krawędź wychodzącą z każdego nieodwiedzonego wierzchołka
+	// stwórz kopie odwiedzonych
+	newVisited := make([]bool, n)
+	copy(newVisited, visited)
+	newVisited[nextVertex] = true
+
+	// sprawdź ile nie odwiedzonych
+	remaining := 0
 	for i := 0; i < n; i++ {
-		if !node.Visited[i] {
-			newBound += atsp.minOutgoingEdge(i, node.Visited)
+		if !newVisited[i] {
+			remaining++
 		}
 	}
 
-	// Przywróć stan
-	node.Visited[nextVertex] = false
+	// jeżeli niema nie odwiedzonych to koszt drogi + koszt powrotu do startu
+	if remaining == 0 {
+		ret := matrix[nextVertex][startVertex]
+		if ret == -1 {
+			return math.MaxInt
+		}
+		return newPathCost + ret
+	}
 
-	return newBound
+	bound := newPathCost
+
+	// minimum wychodzące z następnego wierzchołka do nie odwiedzonych
+	bound += atsp.minOutgoingEdge(nextVertex, newVisited)
+
+	//minimum wychodzące z każdego następnego wierzchołka
+	for i := 0; i < n; i++ {
+		if !newVisited[i] {
+			bound += atsp.minOutgoingEdge(i, newVisited)
+		}
+	}
+
+	return bound
 }
 
-// BranchAndBoundBestFirst rozwiązuje ATSP używając globalnej kolejki priorytetowej
-func (atsp *BranchAndBoundBestFirstSolver) BranchAndBoundBestFirst(startVertex int) (int, []int) {
+func (atsp *BranchAndBoundBestFirstSolver) BranchAndBoundBestFirst(startVertex int, useTimer bool) (int, []int) {
 	n := atsp.graph.GetVerticesNum()
+	matrix := atsp.graph.GetMatrix()
 
-	// Ulepszone górne ograniczenie — greedy nearest neighbor zamiast MaxInt
-	greedyCost, greedyPath := atsp.greedyUpperBound(startVertex)
-	atsp.UpperBound = greedyCost
-	copy(atsp.BestPath, greedyPath)
+	var timer time.Time
+	if useTimer {
+		timer = time.Now()
+	}
 
-	// Globalna kolejka priorytetowa — węzły z najmniejszym LowerBound są przetwarzane pierwsze
+	atsp.UpperBound = math.MaxInt
+
 	globalQueue := utils.NewPriorityQueue(func(a, b BestFirstNode) bool {
 		return a.LowerBound < b.LowerBound
 	})
 
-	// Inicjalizacja węzła startowego
 	startVisited := make([]bool, n)
 	startVisited[startVertex] = true
 
+	// obliczenie początkowego ograniczenia dolnego
+	initialBound := 0
+	initialBound += atsp.minOutgoingEdge(startVertex, startVisited)
+	for i := 0; i < n; i++ {
+		if !startVisited[i] {
+			initialBound += atsp.minOutgoingEdge(i, startVisited)
+		}
+	}
+
 	startNode := BestFirstNode{
 		Vertex:     startVertex,
-		LowerBound: 0,
+		LowerBound: initialBound,
 		Visited:    startVisited,
 		Path:       []int{startVertex},
+		PathCost:   0,
 	}
 	globalQueue.Push(startNode)
 
 	for !globalQueue.IsEmpty() {
+		if useTimer && time.Since(timer).Seconds() >= 180 {
+			return -1, nil
+		}
+
 		current := globalQueue.Pop()
 
-		// Przytnij węzeł jeśli jego dolne ograniczenie >= górne ograniczenie
-		// (mogło się zmienić od czasu dodania węzła do kolejki)
 		if current.LowerBound >= atsp.UpperBound {
 			continue
 		}
 
-		// Sprawdź czy odwiedziliśmy wszystkie wierzchołki
+		// sprawdź czy wszystkie odwiedzone
 		allVisited := true
 		for _, v := range current.Visited {
 			if !v {
@@ -163,39 +171,56 @@ func (atsp *BranchAndBoundBestFirstSolver) BranchAndBoundBestFirst(startVertex i
 		}
 
 		if allVisited {
-			matrix := atsp.graph.GetMatrix()
-			returnCost := current.LowerBound + matrix[current.Vertex][startVertex]
-			if returnCost < atsp.UpperBound {
-				atsp.UpperBound = returnCost
+			ret := matrix[current.Vertex][startVertex]
+			if ret == -1 {
+				continue
+			}
+			totalCost := current.PathCost + ret
+			if totalCost < atsp.UpperBound {
+				atsp.UpperBound = totalCost
 				copy(atsp.BestPath, current.Path)
 			}
 			continue
 		}
 
-		// Rozwiń węzeł — dodaj dzieci do globalnej kolejki
+		// dodaj dzieci do kolejki
 		for i := 0; i < n; i++ {
-			if !current.Visited[i] {
-				newBound := atsp.calculateLowerBound(current, i)
-
-				if newBound >= atsp.UpperBound {
-					continue
-				}
-
-				newVisited := make([]bool, n)
-				copy(newVisited, current.Visited)
-				newVisited[i] = true
-
-				newPath := make([]int, len(current.Path)+1)
-				copy(newPath, current.Path)
-				newPath[len(current.Path)] = i
-
-				globalQueue.Push(BestFirstNode{
-					Vertex:     i,
-					LowerBound: newBound,
-					Visited:    newVisited,
-					Path:       newPath,
-				})
+			if current.Visited[i] {
+				continue
 			}
+
+			edgeCost := matrix[current.Vertex][i]
+			if edgeCost == -1 {
+				continue
+			}
+
+			newBound := atsp.computeBound(
+				current.PathCost,
+				current.Vertex,
+				i,
+				current.Visited,
+				startVertex,
+			)
+			//jeżeli heurystycznie wyszło więcej niż upperBound to nie dodawaj
+			if newBound >= atsp.UpperBound {
+				continue
+			}
+
+			newVisited := make([]bool, n)
+			copy(newVisited, current.Visited)
+			newVisited[i] = true
+
+			newPath := make([]int, len(current.Path)+1)
+			copy(newPath, current.Path)
+			newPath[len(current.Path)] = i
+
+			globalQueue.Push(BestFirstNode{
+				Vertex:     i,
+				LowerBound: newBound,
+				Visited:    newVisited,
+				Path:       newPath,
+				PathCost:   current.PathCost + edgeCost,
+			})
 		}
 	}
 

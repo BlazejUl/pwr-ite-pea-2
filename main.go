@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/BlazejUl/pwr-ite-pea-2/atsp"
@@ -16,7 +15,7 @@ func main() {
 	fileName := ""
 	inputV := 0
 	b := 1
-	rap := 1
+	c := 1
 	for {
 		PrintMenu()
 		var opt int
@@ -55,7 +54,7 @@ func main() {
 			}
 			bfs := atsp.NewBranchAndBoundBestFirstSolver(G)
 			start := time.Now()
-			cost, path := bfs.Solve(0)
+			cost, path := bfs.Solve(0, false)
 			lTimeInMikro := time.Since(start).Microseconds()
 			name := fmt.Sprintf("%dBestFirst.txt", b)
 			b++
@@ -73,50 +72,52 @@ func main() {
 			//
 
 		case 4:
-			return
+			if G == nil {
+				fmt.Println("graf nie został podany")
+				break
+			}
+			bfs := atsp.NewBranchAndBoundBreadthFirstSolver(G)
+			start := time.Now()
+			cost, path := bfs.Solve(0, false)
+			lTimeInMikro := time.Since(start).Microseconds()
+			name := fmt.Sprintf("%dBreadthFirst.txt", c)
+			c++
+			info := fmt.Sprintf("czas: %d µs\nkoszt: %d\nścieżka: %d\n", lTimeInMikro, cost, path)
+			lw := fmt.Sprintf("%d\n", G.GetVerticesNum())
+			graphStr := lw + G.ToString() + "\n"
+			if err := utils.WriteFile(OutName+name, info+graphStr); err != nil {
+				fmt.Printf("////////error %d", err)
+			}
+
+			if err := utils.WriteFile(OutName+"LastMatrix.txt", graphStr); err != nil {
+				fmt.Printf("////////error %d", err)
+			}
+			fmt.Printf("czas: %d µs\nkoszt: %d\nścieżka: %d\n", lTimeInMikro, cost, path)
 		case 5:
 			fmt.Println("Podaj ilość miast")
+			n := 100
 			if _, err := fmt.Scanln(&opt); err != nil {
 				fmt.Println(err)
 			} else {
-				raport := "   NN   |  ReNN  | Random \n"
-				bAllCost := 0
-				nAllCost := 0
-				rnAllCost := 0
-				rAllCost := 0
-				for range 100 {
+				bestAll := 0
+				breadthAll := 0
+				for range n {
 					G, _ = utils.GenerateAdMatrix(opt)
 					bt := atsp.NewBranchAndBoundBestFirstSolver(G)
 					nn := atsp.NewBranchAndBoundBreadthFirstSolver(G)
-					rnn := atsp.NewBranchAndBoundBestFirstSolver(G)
-					ra := atsp.NewBranchAndBoundBestFirstSolver(G)
-					bCost, _ := bt.Solve(0)
-					nCost, _ := nn.Solve(0)
-					rnCost, _ := rnn.Solve(0)
-					rCost, _ := ra.Solve(0)
-					bAllCost = bAllCost + bCost
-					nAllCost = nAllCost + nCost
-					rnAllCost = rnAllCost + rnCost
-					rAllCost = rAllCost + rCost
-					nB := (math.Abs(float64((bCost - nCost))) / float64(bCost)) * 100
-					rnB := (math.Abs(float64((bCost - rnCost))) / float64(bCost)) * 100
-					rB := (math.Abs(float64((bCost - rCost))) / float64(bCost)) * 100
-					iterS := fmt.Sprintf("%.2f%% | %.2f%% | %.2f%%\n", nB, rnB, rB)
-					raport = raport + iterS
+					bestCost, _ := bt.Solve(0, true)
+					breadthCost, _ := nn.Solve(0, true)
+					if bestCost > 0 {
+						bestAll++
+					}
+					if breadthCost > 0 {
+						breadthAll++
+					}
 				}
-				nBk := (math.Abs(float64((bAllCost - nAllCost))) / float64(bAllCost)) * 100
-				rnBk := (math.Abs(float64((bAllCost - rnAllCost))) / float64(bAllCost)) * 100
-				rBk := (math.Abs(float64((bAllCost - rAllCost))) / float64(bAllCost)) * 100
-				lIterS := fmt.Sprintf("%.2f%% | %.2f%% | %.2f%%\n", nBk, rnBk, rBk)
-				raport = raport + "--------------------\n"
-				raport = raport + lIterS
-				name := fmt.Sprintf("%dTestAll.txt", rap)
-				if err := utils.WriteFile(OutName+name, raport); err != nil {
-					fmt.Printf("////////error %d", err)
-				}
-				rap++
-				fmt.Println("   NN   |  ReNN  | Random ")
-				fmt.Printf("%.2f%% | %.2f%% | %.2f%%\n", nBk, rnBk, rBk)
+				bestR := (bestAll / n) * 100
+				breadthR := (breadthAll / n) * 100
+				fmt.Println("best | breadth")
+				fmt.Printf("%d%% | %d%%\n", bestR, breadthR)
 			}
 		case 6:
 			return

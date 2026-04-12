@@ -2,6 +2,7 @@ package atsp
 
 import (
 	"math"
+	"time"
 
 	"github.com/BlazejUl/pwr-ite-pea-2/graph"
 )
@@ -25,8 +26,8 @@ func (atsp *BranchAndBoundBreadthFirstSolver) GetGraph() graph.Graph {
 	return atsp.graph
 }
 
-func (atsp *BranchAndBoundBreadthFirstSolver) Solve(startVertex int) (int, []int) {
-	return atsp.BranchAndBoundBreadthFirstSolver(startVertex)
+func (atsp *BranchAndBoundBreadthFirstSolver) Solve(startVertex int, useTimer bool) (int, []int) {
+	return atsp.BranchAndBoundBreadthFirstSolver(startVertex, useTimer)
 }
 
 // BFSNode reprezentuje węzeł w kolejce BFS
@@ -37,7 +38,12 @@ type BFSNode struct {
 	Path       []int
 }
 
-func (atsp *BranchAndBoundBreadthFirstSolver) BranchAndBoundBreadthFirstSolver(startVertex int) (int, []int) {
+func (atsp *BranchAndBoundBreadthFirstSolver) BranchAndBoundBreadthFirstSolver(startVertex int, useTimer bool) (int, []int) {
+	var timer time.Time
+	if useTimer {
+		timer = time.Now()
+	}
+
 	n := atsp.graph.GetVerticesNum()
 	matrix := atsp.graph.GetMatrix()
 
@@ -55,6 +61,12 @@ func (atsp *BranchAndBoundBreadthFirstSolver) BranchAndBoundBreadthFirstSolver(s
 	queue := []BFSNode{startNode}
 
 	for len(queue) > 0 {
+
+		if useTimer {
+			if time.Since(timer).Seconds() >= 180 {
+				return -1, nil
+			}
+		}
 		// Pobierz węzeł z przodu kolejki (FIFO)
 		current := queue[0]
 		queue = queue[1:]
